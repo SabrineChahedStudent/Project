@@ -32,7 +32,7 @@ export function SupportChatbot({ isOpen, ticketData, onCancel, onForceSubmit }) 
         description: ticketData.description || '',
         history: ''
       });
-      setHistory(prev => [...prev, { role: 'bot', text: resp.reply, is_resolved: resp.is_resolved, can_submit: resp.can_submit }]);
+      setHistory(prev => [...prev, { role: 'bot', text: resp.reply, is_resolved: resp.is_resolved, can_submit: resp.can_submit, auto_submit: resp.auto_submit }]);
     } catch (err) {
       setHistory(prev => [...prev, { role: 'bot', text: 'Je rencontre un souci technique pour analyser. Dois-je soumettre votre réclamation directement aux agents ?', can_submit: true }]);
     } finally {
@@ -65,7 +65,8 @@ export function SupportChatbot({ isOpen, ticketData, onCancel, onForceSubmit }) 
         role: 'bot', 
         text: resp.reply || "Pouvez-vous préciser ?", 
         is_resolved: resp.is_resolved, 
-        can_submit: resp.can_submit 
+        can_submit: resp.can_submit,
+        auto_submit: resp.auto_submit
       }]);
     } catch (err) {
       setHistory(prev => [...prev, { role: 'bot', text: "Erreur réseau. Continuer la soumission ?", can_submit: true }]);
@@ -77,6 +78,13 @@ export function SupportChatbot({ isOpen, ticketData, onCancel, onForceSubmit }) 
   const lastBotMsg = history.filter(m => m.role === 'bot').pop();
   const canSubmitNow = lastBotMsg?.can_submit;
   const isResolvedNow = lastBotMsg?.is_resolved;
+  const autoSubmitNow = lastBotMsg?.auto_submit;
+
+  useEffect(() => {
+    if (autoSubmitNow) {
+      onForceSubmit(history);
+    }
+  }, [autoSubmitNow]);
 
   if (!isOpen) return null;
 
@@ -127,7 +135,7 @@ export function SupportChatbot({ isOpen, ticketData, onCancel, onForceSubmit }) 
             )}
 
             {/* Actions UI */}
-            {canSubmitNow && !loading && (
+            {canSubmitNow && !autoSubmitNow && !loading && (
                <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl mt-6 text-center shadow-sm">
                  <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
                  <p className="text-[15px] text-amber-900 font-bold mb-4">L'assistant n'a pas pu résoudre le problème.</p>

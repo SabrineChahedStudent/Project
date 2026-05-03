@@ -11,6 +11,23 @@ class TypesServiceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Auto-heal: Ensure default types exist if database is empty or partially empty
+        if TypeService.objects.count() < 6:
+            default_types = [
+                {'id': 1, 'code': 'ADSL', 'libelle': 'Internet ADSL'},
+                {'id': 2, 'code': 'FIBER', 'libelle': 'Internet Fiber'},
+                {'id': 3, 'code': 'FIXE', 'libelle': 'Téléphonie Fixe'},
+                {'id': 4, 'code': '4GLTE', 'libelle': '4G LTE'},
+                {'id': 5, 'code': 'IPTV', 'libelle': 'IPTV'},
+                {'id': 6, 'code': 'AUTRE', 'libelle': 'Autre'},
+            ]
+            for t in default_types:
+                TypeService.objects.get_or_create(id=t['id'], defaults={
+                    'code': t['code'],
+                    'libelle': t['libelle'],
+                    'priorite_defaut': 2
+                })
+                
         types = TypeService.objects.filter(actif=True)
         return Response(TypeServiceSerializer(types, many=True).data)
 

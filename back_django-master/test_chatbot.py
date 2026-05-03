@@ -58,14 +58,28 @@ Bot: { "reply": "This is outside of the scope", "is_resolved": false, "can_submi
         }
     }
     
-    try:
-        req = urllib.request.Request(API_URL, data=json.dumps(payload).encode('utf-8'), headers={"Content-Type": "application/json"})
-        resp = urllib.request.urlopen(req, timeout=20)
-        data = json.loads(resp.read().decode('utf-8'))
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        return json.loads(text.strip(), strict=False)
-    except Exception as e:
-        return {"error": str(e)}
+    max_retries = 3
+    base_delay = 2
+
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(API_URL, data=json.dumps(payload).encode('utf-8'), headers={"Content-Type": "application/json"})
+            resp = urllib.request.urlopen(req, timeout=20)
+            data = json.loads(resp.read().decode('utf-8'))
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            return json.loads(text.strip(), strict=False)
+        except urllib.error.HTTPError as e:
+            if e.code in [503, 429]:
+                if attempt < max_retries - 1:
+                    time.sleep(base_delay * (2 ** attempt))
+                    continue
+                return {"error": f"API IA en surcharge (Erreur {e.code}) après {max_retries} tentatives."}
+            return {"error": f"HTTP Error {e.code}"}
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(base_delay * (2 ** attempt))
+                continue
+            return {"error": str(e)}
 
 scenarios = [
     ("Internet ADSL", "Mon internet ADSL est complètement coupé depuis hier soir, le voyant rouge clignote.", "Valid Telecom (French)"),

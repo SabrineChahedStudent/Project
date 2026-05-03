@@ -418,15 +418,27 @@ export default function WorkspaceView({ agentRole = 'agent' }) {
               </div>
             </div>
             {/* Description in bar */}
-            {selectedTicket.description && (
-              <div className="px-6 py-4 bg-white border-b shrink-0">
-                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <FileText className="w-5 h-5 text-[#0055A4] shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Description</p>
-                    <p className="text-sm font-bold text-slate-700 leading-relaxed">{selectedTicket.description}</p>
+            {/* Description in bar */}
+            {(selectedTicket.description || selectedTicket.resume_ia) && (
+              <div className="px-6 py-4 bg-white border-b shrink-0 flex flex-col gap-4">
+                {selectedTicket.description && (
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <FileText className="w-5 h-5 text-[#0055A4] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Description du Client</p>
+                      <p className="text-sm font-bold text-slate-700 leading-relaxed">{selectedTicket.description}</p>
+                    </div>
                   </div>
-                </div>
+                )}
+                {selectedTicket.resume_ia && (
+                  <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                    <BrainCircuit className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-purple-500 tracking-widest mb-1">Résumé IA (Triage Initial)</p>
+                      <p className="text-sm font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">{selectedTicket.resume_ia}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

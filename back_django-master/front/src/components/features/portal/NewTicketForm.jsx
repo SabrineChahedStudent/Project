@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LanguageButton } from '@/components/shared/LanguageButton';
 import { getServiceTypes, createTicket, uploadAttachment } from '@/api/tickets';
 import { Loader2, Phone, Search, CheckCircle2, FileUp, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { SupportChatbot } from '@/components/features/portal/SupportChatbot';
 
 export function NewTicketForm({ userPhone, onSubmit }) {
@@ -23,6 +24,7 @@ export function NewTicketForm({ userPhone, onSubmit }) {
   // Chatbot Interception States
   const [showChatbot, setShowChatbot] = useState(false);
   const [pendingTicketData, setPendingTicketData] = useState(null);
+  const [successTicket, setSuccessTicket] = useState(null);
 
   // Fetch service types from backend
   useEffect(() => {
@@ -84,17 +86,14 @@ export function NewTicketForm({ userPhone, onSubmit }) {
     setError('');
 
     try {
-      // Append AI history to the description if it exists
-      let finalDescription = pendingTicketData.description;
-      if (aiHistory && aiHistory.length > 0) {
-        const historyText = aiHistory.map(m => `${m.role === 'bot' ? 'Assistant' : 'Client'}: ${m.text}`).join('\n');
-        finalDescription += `\n\n--- Tentative de résolution par l'IA ---\n${historyText}`;
-      }
-
+      // Send AI history as a separate field for the backend to summarize
       const ticketData = {
-        ...pendingTicketData,
-        description: finalDescription
+        ...pendingTicketData
       };
+      
+      if (aiHistory && aiHistory.length > 0) {
+        ticketData.historique_ia = aiHistory.map(m => `${m.role === 'bot' ? 'Assistant' : 'Client'}: ${m.text}`).join('\n');
+      }
 
       const newTicket = await createTicket(ticketData);
 
@@ -115,10 +114,24 @@ export function NewTicketForm({ userPhone, onSubmit }) {
       setAttachmentPreview(null);
       setPendingTicketData(null);
 
-      onSubmit(newTicket);
+      // Show success modal instead of immediately switching tabs
+      setSuccessTicket(newTicket);
     } catch (err) {
-      setError(err.response?.data?.detail || err.response?.data?.message || 'Erreur lors de la soumission.');
-      console.error('Ticket creation failed:', err);
+      console.error('Ticket creation failed:', err, err.response?.data);
+      let errorMsg = 'Erreur lors de la soumission.';
+      if (err.response?.data) {
+        if (err.response.data.detail) errorMsg = err.response.data.detail;
+        else if (err.response.data.message) errorMsg = err.response.data.message;
+        else if (typeof err.response.data === 'object') {
+          // Flatten DRF errors (e.g. {"description": ["This field is required."]})
+          const errors = Object.entries(err.response.data).map(([key, val]) => {
+            const valStr = Array.isArray(val) ? val.join(' ') : String(val);
+            return `${key}: ${valStr}`;
+          });
+          if (errors.length > 0) errorMsg = errors.join(' | ');
+        }
+      }
+      setError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -243,6 +256,28 @@ export function NewTicketForm({ userPhone, onSubmit }) {
         onCancel={() => setShowChatbot(false)} 
         onForceSubmit={executeFinalSubmission} 
       />
+
+      {/* Success Modal */}
+      {successTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Succès !</h3>
+            <p className="text-slate-600 mb-8 font-medium">
+              Votre réclamation a été soumise avec succès sous la référence <br/>
+              <strong className="text-slate-900">{successTicket.numero_ticket || '...'}</strong>.
+            </p>
+            <Button 
+              onClick={() => onSubmit(successTicket)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-6 rounded-xl"
+            >
+              Voir mes réclamations
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

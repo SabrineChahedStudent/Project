@@ -91,8 +91,19 @@ export function CustomerTicketList({ tickets, loading, onSelectTicket, onTicketD
                 </Badge>
               </div>
               <p className="text-sm font-bold text-slate-600 italic line-clamp-2">
-                {ticket.titre}
+                "{ticket.titre}"
               </p>
+
+              {ticket.resume_ia && (
+                <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mt-4">
+                  <p className="text-[10px] font-black uppercase text-purple-600 tracking-widest mb-1 flex items-center gap-1">
+                    Résumé IA
+                  </p>
+                  <p className="text-xs font-medium text-slate-700 line-clamp-3">
+                    {ticket.resume_ia}
+                  </p>
+                </div>
+              )}
 
               <div className="pt-6 border-t flex justify-between items-center">
                 <Button

@@ -39,24 +39,57 @@ class PieceJointeUploadSerializer(serializers.ModelSerializer):
 
 
 class CreerTicketSerializer(serializers.ModelSerializer):
+    type_service = serializers.IntegerField(write_only=True)
+    historique_ia = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model  = Ticket
-        fields = ['type_service', 'titre', 'description']
+        fields = ['type_service', 'titre', 'description', 'historique_ia']
 
     def create(self, validated_data):
         client = self.context['request'].user
 
-        # Récupérer directement le centre du client
+        # Récupérer directement le centre du client, auto-heal si manquant
         centre = client.centre
         if not centre:
-            raise serializers.ValidationError(
-                "Vous n'êtes rattaché à aucun centre."
-            )
+            from apps.centres.models import CentreDistribution
+            centre = CentreDistribution.objects.first()
+            if not centre:
+                centre = CentreDistribution.objects.create(
+                    code='AT-ALGER-01',
+                    nom='Centre Principal Alger',
+                    wilaya='Alger',
+                    prefixes_tel=['0555', '0560']
+                )
+            client.centre = centre
+            client.save(update_fields=['centre'])
 
         priorite_map = {1: 'basse', 2: 'normale', 3: 'haute', 4: 'critique'}
-        priorite = priorite_map.get(validated_data['type_service'].priorite_defaut, 'normale')
+        
+        type_service_id = validated_data.pop('type_service')
+        try:
+            ts = TypeService.objects.get(id=type_service_id)
+        except TypeService.DoesNotExist:
+            fallback_map = {
+                1: 'Internet ADSL', 2: 'Internet Fiber', 3: 'Téléphonie Fixe',
+                4: '4G LTE', 5: 'IPTV', 6: 'Autre'
+            }
+            libelle = fallback_map.get(type_service_id, f'Service {type_service_id}')
+            code = f"SVC_{type_service_id}"
+            import uuid
+            if TypeService.objects.filter(code=code).exists():
+                code = f"SVC_{uuid.uuid4().hex[:6]}"
+            ts = TypeService.objects.create(id=type_service_id, code=code, libelle=libelle, priorite_defaut=2)
 
-        ticket = Ticket.objects.create(client=client, centre=centre, priorite=priorite, **validated_data)
+        priorite = priorite_map.get(ts.priorite_defaut, 'normale')
+
+        historique_ia = validated_data.pop('historique_ia', None)
+        resume_ia = None
+        if historique_ia:
+            from .hf_triage import generer_resume_ia
+            resume_ia = generer_resume_ia(historique_ia)
+
+        ticket = Ticket.objects.create(client=client, centre=centre, priorite=priorite, type_service=ts, resume_ia=resume_ia, **validated_data)
 
         try:
             params = ParametresCentre.objects.get(centre=centre)
@@ -109,7 +142,7 @@ class TicketListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Ticket
-        fields = ['id', 'numero_ticket', 'titre', 'statut', 'priorite', 'type_service_libelle', 'client_nom', 'client_prenom', 'agent_nom', 'agent_prenom', 'centre_nom', 'nombre_messages', 'created_at', 'echeance_sla']
+        fields = ['id', 'numero_ticket', 'titre', 'description', 'resume_ia', 'statut', 'priorite', 'type_service_libelle', 'client_nom', 'client_prenom', 'agent_nom', 'agent_prenom', 'centre_nom', 'nombre_messages', 'created_at', 'echeance_sla']
 
     def get_nombre_messages(self, obj):
         return obj.messages.count()
@@ -127,7 +160,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Ticket
-        fields = ['id', 'numero_ticket', 'titre', 'description', 'statut', 'priorite', 'type_service', 'client_nom', 'client_prenom', 'client_tel', 'agent_nom', 'agent_prenom', 'centre_nom', 'attribution_auto', 'resolution', 'satisfaction_client', 'commentaire_satisfaction', 'pieces_jointes', 'created_at', 'updated_at', 'pris_en_charge_a', 'resolu_a', 'ferme_a', 'echeance_sla']
+        fields = ['id', 'numero_ticket', 'titre', 'description', 'resume_ia', 'statut', 'priorite', 'type_service', 'client_nom', 'client_prenom', 'client_tel', 'agent_nom', 'agent_prenom', 'centre_nom', 'attribution_auto', 'resolution', 'satisfaction_client', 'commentaire_satisfaction', 'pieces_jointes', 'created_at', 'updated_at', 'pris_en_charge_a', 'resolu_a', 'ferme_a', 'echeance_sla']
 
 
 class MettreAJourTicketSerializer(serializers.ModelSerializer):
